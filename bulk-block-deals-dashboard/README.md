@@ -102,16 +102,35 @@ two-party blocks, where one institution sells and a different one buys.
 
 ## Running it
 
+`index.html` is a single self-contained file with the data inlined, so there is no
+server and no build step - just open it:
+
 ```
 git clone <this repo>
 cd <this repo>/bulk-block-deals-dashboard
-python3 -m http.server 8000
-# open http://localhost:8000
+# then open index.html in any browser (file:// is fine)
 ```
 
-A file server is needed because `index.html` fetches `data.json`. Alternatively open
-`dashboard.html`, which is fully self-contained with the data inlined and works from
-`file://`.
+`app.js` and `data.json` are the sources it is generated from. They are kept for
+editing and for re-running the scrape, but are not needed to view the dashboard.
+
+---
+
+## Hosting on GitHub Pages
+
+Because `index.html` depends on nothing but itself, the folder can be served as-is.
+In the repository go to **Settings -> Pages**, set **Source** to *Deploy from a
+branch*, choose branch `main` and folder `/ (root)`, and save. The dashboard then
+lives at:
+
+```
+https://kgoel9899.github.io/stock-market-expts/bulk-block-deals-dashboard/
+```
+
+Two caveats. GitHub Pages on a **private** repository requires a paid plan (Pro, Team
+or Enterprise); on the free tier the repository has to be public before Pages will
+publish. And the page is roughly 1 MB because the data is inlined, so the first load
+pulls the whole dataset in a single request.
 
 ---
 
@@ -149,7 +168,8 @@ const merged = (await (await fetch('data.json')).json()).concat(fresh);
 copy(JSON.stringify(merged));  // paste into data.json
 ```
 
-4. Regenerate `dashboard.html` by inlining the new JSON into the standalone build.
+4. Regenerate `index.html` (and its `dashboard.html` copy) by inlining the new JSON
+   into the standalone build.
 5. Update the summary numbers at the top of this README and the date range in the
 `META` object in `app.js`.
 
@@ -175,11 +195,11 @@ preserved anywhere, so inspecting what was filtered out requires a re-scrape.
 
 | File | Purpose |
 |---|---|
-| `index.html` | Entry point, loads `app.js` + `data.json` |
+| `index.html` | **The dashboard.** Self-contained single file, data inlined - this is what GitHub Pages serves |
 | `app.js` | Styles, paginated table component, aggregation and rendering |
 | `scrape.js` | Trendlyne scraper and the cleaning rules |
 | `data.json` | The 4,268 cleaned deals |
-| `dashboard.html` | Standalone single-file build (data inlined) |
+| `dashboard.html` | Byte-identical copy of `index.html`, kept under its original name |
 
 ## Disclaimer
 
