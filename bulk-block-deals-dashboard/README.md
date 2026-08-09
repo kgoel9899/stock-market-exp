@@ -22,6 +22,8 @@ clickable and expand into the underlying individual deals. Every table is pagina
 and search/sort always run over the *whole* dataset before paging, never just the
 visible page. Rupee figures are shown exactly in crore to two decimals; hovering a
 value reveals the precise rupee amount.
+Deal lists default to **most recent date first** - in the Daily and All Deals tabs,
+and inside every expanded row of the By Stock and By Institution tabs.
 
 ## How the data is collected
 
@@ -37,11 +39,11 @@ returned HTML with `DOMParser`, and reads the rows straight out of the table.
 ## Cleaning rules
 
 1. **Matched round trips removed.** Any client that both bought *and* sold the same
-stock in the same quantity on the same day has that matched buy/sell pair dropped -
-619 pairs, 1,238 rows. This is overwhelmingly intraday market-maker and arbitrage
-churn (NK Securities, Junomoneta Finsol, HRTI, Microcurves and similar).
+   stock in the same quantity on the same day has that matched buy/sell pair dropped -
+   619 pairs, 1,238 rows. This is overwhelmingly intraday market-maker and arbitrage
+   churn (NK Securities, Junomoneta Finsol, HRTI, Microcurves and similar).
 2. **Feed duplicates removed.** 66 rows where one trade was reported twice, once in
-the Bulk feed and once in the Block feed, which would otherwise double-count value.
+   the Bulk feed and once in the Block feed, which would otherwise double-count value.
 
 A note on **net = 0.00 cr**: some stocks show an exactly zero net. That means both
 sides of the transaction were disclosed - typically a promoter or intra-group transfer
