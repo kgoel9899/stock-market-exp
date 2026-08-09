@@ -24,6 +24,8 @@ visible page. Rupee figures are shown exactly in crore to two decimals; hovering
 value reveals the precise rupee amount.
 Deal lists default to **most recent date first** - in the Daily and All Deals tabs,
 and inside every expanded row of the By Stock and By Institution tabs.
+Within a day, deals are grouped by institution and stock, with the buy leg listed
+before the sell leg.
 
 ## How the data is collected
 
@@ -50,6 +52,23 @@ sides of the transaction were disclosed - typically a promoter or intra-group tr
 (Adani Power, Adani Green, Bayer Cropscience), or an offer-for-sale where one seller
 is matched by many named buyers (One97, Meesho). For those names the turnover column
 is the meaningful one, not the net.
+
+## Optional: exclude same-day round trips
+
+The two cleaning rules above are baked into `data.json`. The dashboard adds a third,
+optional filter as a toggle in the header: it hides every institution + stock + day
+whose buy and sell quantities agree within a chosen tolerance (0.1%, 0.5%, 1%, 2% or
+5%) and recomputes every table and headline figure.
+
+This catches the near-matched round trips that the exact-quantity rule misses - for
+example Graviton buying 8,775,327 Kalyan Jewellers shares and selling 8,775,262 the
+same day, a gap of 65 shares on 8.8 million. At 1% it hides 620 of 4,268 rows and
+turnover falls from Rs 94,792.43 cr to Rs 71,961.13 cr; at 0.1% it hides 230 rows
+whose combined residual net position is only about Rs 4 cr.
+
+The toggle defaults to **off**, so the figures quoted above and the contents of
+`data.json` are unaffected. Two caveats: it drops the whole group including any
+genuine residual position, and a single client name can cover several funds.
 
 ## Running it
 
