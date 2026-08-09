@@ -4,7 +4,7 @@ An interactive dashboard over Indian bulk and block deal disclosures, built from
 [Trendlyne](https://trendlyne.com/portfolio/bulk-block-deals/all/) data for
 **1 Jul 2026 - 9 Aug 2026** (28 trading days).
 
-![tabs](https://img.shields.io/badge/tabs-7-blue) ![deals](https://img.shields.io/badge/deals-4%2C268-green) ![stocks](https://img.shields.io/badge/stocks-673-orange)
+![tabs](https://img.shields.io/badge/tabs-8-blue) ![deals](https://img.shields.io/badge/deals-4%2C268-green) ![stocks](https://img.shields.io/badge/stocks-673-orange)
 
 ## What it does
 
@@ -16,8 +16,8 @@ An interactive dashboard over Indian bulk and block deal disclosures, built from
 | Buy value | Rs 45,593.24 cr |
 | Sell value | Rs 49,199.18 cr |
 
-Seven tabs: **Overview**, **By Stock**, **By Institution**, **Stock -> Institutions**,
-**Institution -> Stocks**, **Daily** and **All Deals**. Rows in the aggregate tabs are
+Eight tabs: **Overview**, **By Stock**, **By Institution**, **Stock -> Institutions**,
+**Institution -> Stocks**, **Daily**, **Daily - One-Sided** and **All Deals**. Rows in the aggregate tabs are
 clickable and expand into the underlying individual deals. Every table is paginated,
 and search/sort always run over the *whole* dataset before paging, never just the
 visible page. Rupee figures are shown exactly in crore to two decimals; hovering a
@@ -69,6 +69,36 @@ whose combined residual net position is only about Rs 4 cr.
 The toggle defaults to **off**, so the figures quoted above and the contents of
 `data.json` are unaffected. Two caveats: it drops the whole group including any
 genuine residual position, and a single client name can cover several funds.
+
+## The "Daily - One-Sided" tab
+
+This is the **Daily** tab with one extra rule applied: on each day, any institution
+that both bought **and** sold the same stock that day is dropped entirely - whatever
+the quantities, however lopsided. Where the tolerance toggle above asks "did the two
+sides roughly cancel?", this tab asks the blunter question "was this institution on
+both sides at all?".
+
+What survives is directional flow only: institutions that purely bought, or purely
+sold, a given stock on a given day.
+
+| | |
+|---|---|
+| Rows kept | 1,975 of 4,268 |
+| Rows removed | 2,293, across 1,103 institution + stock + day combinations |
+| Stocks | 546 |
+| Institutions | 1,215 |
+| Buy value | Rs 23,304.47 cr |
+| Sell value | Rs 27,361.68 cr |
+| Turnover | Rs 50,666.14 cr |
+
+It behaves exactly like the Daily tab otherwise - click any date to open every
+surviving deal for that day, both lists are paged independently, and the search box
+looks through all deals on all days.
+
+Because this rule is strictly stronger than any tolerance the toggle offers, the tab
+shows the same 1,975 rows whether the round-trip toggle is on or off. Note that it
+only removes an institution from the stock it traded both ways - it keeps genuine
+two-party blocks, where one institution sells and a different one buys.
 
 ## Running it
 
