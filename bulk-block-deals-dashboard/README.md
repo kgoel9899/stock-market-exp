@@ -269,6 +269,10 @@ lives at:
 https://kgoel9899.github.io/stock-market-expts/bulk-block-deals-dashboard/
 ```
 
+A second `index.html` at the repository root redirects here, so the bare site URL
+(`https://kgoel9899.github.io/stock-market-expts/`) lands on the dashboard instead of
+returning a 404.
+
 Two caveats. GitHub Pages on a **private** repository requires a paid plan (Pro, Team
 or Enterprise); on the free tier the repository has to be public before Pages will
 publish. And the page is roughly 1 MB because the data is inlined, so the first load
