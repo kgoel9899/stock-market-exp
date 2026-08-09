@@ -204,6 +204,14 @@ function renderDashboard(DEALS, meta) {
   S.all = DEALS; S.meta = meta;
   if (S.on) DEALS = excludeRoundTrips(DEALS, S.tol);
   const X = buildDashboard(DEALS, meta);
+  // One-sided view: drop every institution that both bought AND sold the same stock on the same day, at any quantity.
+  const ONEWAY = excludeRoundTrips(DEALS, 100);
+  const XC = buildDashboard(ONEWAY, meta);
+  const TWOSIDED = (function () {
+    const g = {};
+    DEALS.forEach(r => { const k = r.day + '\u0000' + r.client + '\u0000' + r.stock; const o = g[k] || (g[k] = { b: 0, s: 0 }); if (r.action === 'Purchase') o.b++; else o.s++; });
+    return Object.keys(g).filter(k => g[k].b > 0 && g[k].s > 0).length;
+  })();
   const { stocks, insts, days, rbs, rbi, rbd, pbs, pbi, BV, SV, fn, fc, fcp, dfmt, wd, money, moneyC, dealTable, childTable } = X;
   meta = meta || {};
 
@@ -211,7 +219,7 @@ function renderDashboard(DEALS, meta) {
   const st = document.createElement('style'); st.textContent = window.CSS_SRC; document.head.appendChild(st);
 
   const kpi = (l, v, s) => '<div class="kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + (s || '') + '</div></div>';
-  const TABS = [['ov', 'Overview'], ['st', 'By Stock'], ['in', 'By Institution'], ['gs', 'Stock \u2192 Institutions'], ['gi', 'Institution \u2192 Stocks'], ['dy', 'Daily'], ['dl', 'All Deals']];
+  const TABS = [['ov', 'Overview'], ['st', 'By Stock'], ['in', 'By Institution'], ['gs', 'Stock \u2192 Institutions'], ['gi', 'Institution \u2192 Stocks'], ['dy', 'Daily'], ['dc', 'Daily \u00B7 One-Sided'], ['dl', 'All Deals']];
 
   document.body.innerHTML = '<div class="wrap">' +
     '<h1>' + (meta.title || 'Bulk &amp; Block Deals Dashboard') + '</h1>' +
@@ -324,6 +332,43 @@ function renderDashboard(DEALS, meta) {
         });
       }, 0);
       return '<div class="cs" style="margin:8px 0 2px"><b>' + fn(r.deals) + '</b> deals on ' + dfmt(r.name) + ' \u00B7 buy \u20B9' + fcp(r.bv) + 'cr \u00B7 sell \u20B9' + fcp(r.sv) + 'cr</div><div id="' + id + '"></div>';
+    }
+  });
+
+  // ---- Daily (one-sided only) ----
+  document.getElementById('p_dc').innerHTML = '<div class="card"><h2>Day-by-day activity \u2014 one-sided participants only</h2><div class="cs">' +
+    'Same layout as the <b>Daily</b> tab, but on each day every institution that <b>both bought and sold the same stock that day</b> is removed outright \u2014 whatever the quantities, however lopsided. ' +
+    'What remains is directional flow: institutions that only bought, or only sold, a given stock on that day. <b>Click any date</b> to open every surviving deal.</div>' +
+    '<div class="cs" style="margin-top:7px"><b>' + fn(ONEWAY.length) + '</b> of ' + fn(DEALS.length) + ' rows kept \u00B7 <b>' + fn(DEALS.length - ONEWAY.length) +
+    '</b> rows removed across <b>' + fn(TWOSIDED) + '</b> institution + stock + day combinations \u00B7 ' +
+    fn(XC.days.length) + ' trading days \u00B7 <b>' + fn(XC.stocks.length) + '</b> stocks \u00B7 <b>' + fn(XC.insts.length) + '</b> institutions \u00B7 buy \u20B9' +
+    fcp(XC.BV) + 'cr \u00B7 sell \u20B9' + fcp(XC.SV) + 'cr \u00B7 turnover \u20B9' + fcp(XC.BV + XC.SV) + 'cr</div>' +
+    '<div id="mDayC"></div></div>';
+  paginatedTable('mDayC', {
+    rows: XC.days, sortIdx: 0, pageSize: 25, sizes: [10, 25, 50], placeholder: 'Search a date, stock or institution across all days...',
+    text: r => r.name + ' ' + dfmt(r.name) + ' ' + (XC.rbd[r.name] || []).map(x => x.stock + ' ' + x.client).join(' '),
+    cols: [
+      { h: 'Date', l: 1, f: r => '<b>' + dfmt(r.name) + '</b> <span class="mut">' + wd(r.name) + '</span>', v: r => r.name },
+      { h: 'Deals', f: r => fn(r.deals), v: r => r.deals },
+      { h: 'Stocks', f: r => fn(r.parties), v: r => r.parties },
+      { h: 'Buy \u20B9cr', f: r => fc(r.bv), v: r => r.bv },
+      { h: 'Sell \u20B9cr', f: r => fc(r.sv), v: r => r.sv },
+      { h: 'Net \u20B9cr', f: r => money(r.net), v: r => r.net },
+      { h: 'Turnover \u20B9cr', f: r => fc(r.bv + r.sv), v: r => r.bv + r.sv }],
+    expand: r => {
+      const id = 'dc' + r.name.replace(/-/g, '');
+      setTimeout(() => {
+        const m = document.getElementById(id);
+        if (!m || m.dataset.done) return;
+        m.dataset.done = 1;
+        paginatedTable(m, {
+          rows: orderDeals(XC.rbd[r.name] || []), pageSize: 25, sizes: [10, 25, 50, 100],
+          placeholder: 'Filter this day...', text: x => x.stock + ' ' + x.client + ' ' + x.exch + ' ' + x.type + ' ' + x.action,
+          cols: [{ h: 'Stock', l: 1, f: x => '<b>' + x.stock + '</b>', v: x => x.stock },
+                 { h: 'Institution / Client', l: 1, f: x => x.client, v: x => x.client }].concat(X.dealCols({ h: '', f: () => '' }).slice(1))
+        });
+      }, 0);
+      return '<div class="cs" style="margin:8px 0 2px"><b>' + fn(r.deals) + '</b> one-sided deals on ' + dfmt(r.name) + ' \u00B7 buy \u20B9' + fcp(r.bv) + 'cr \u00B7 sell \u20B9' + fcp(r.sv) + 'cr</div><div id="' + id + '"></div>';
     }
   });
 
