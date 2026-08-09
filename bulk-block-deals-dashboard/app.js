@@ -142,9 +142,9 @@ function buildDashboard(DEALS, meta) {
     { h: 'Intraday', f: r => r.intraday === 'Yes' ? '<span class="mut">Yes</span>' : '', v: r => r.intraday }
   ]);
   const dealTable = (rows, mode) => {
-    rows = rows.slice().sort((a, b) => b.val - a.val);
+    rows = rows.slice().sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0) || (b.val - a.val));
     const head = mode === 'stock' ? '<th class="l">Institution / Client</th>' : '<th class="l">Stock</th>';
-    return '<div class="cs" style="margin:8px 0 4px"><b>' + fn(rows.length) + '</b> individual deals \u00B7 sorted by value</div>' +
+    return '<div class="cs" style="margin:8px 0 4px"><b>' + fn(rows.length) + '</b> individual deals \u00B7 most recent first</div>' +
       '<table><thead><tr><th class="l">Date</th>' + head + '<th class="l">Exch</th><th class="l">Type</th><th class="l">Action</th><th>Qty</th><th>Price \u20B9</th><th>Value \u20B9cr</th><th>% Traded</th><th>Intraday</th></tr></thead><tbody>' +
       rows.map(r => '<tr><td class="l">' + dfmt(r.day) + '</td><td class="l">' + (mode === 'stock' ? r.client : '<b>' + r.stock + '</b>') +
         '</td><td class="l"><span class="mut">' + r.exch + '</span></td><td class="l">' + TY(r) + '</td><td class="l">' + AC(r) +
@@ -248,7 +248,7 @@ function renderDashboard(DEALS, meta) {
   document.getElementById('p_dy').innerHTML = '<div class="card"><h2>Day-by-day activity</h2><div class="cs">' + days.length +
     ' trading days \u00B7 <b>click any date to open every deal reported that day</b> \u00B7 the day list and each day\u2019s deal list are separately paged; searching looks through all deals on all days</div><div id="mDay"></div></div>';
   paginatedTable('mDay', {
-    rows: days, pageSize: 25, sizes: [10, 25, 50], placeholder: 'Search a date, stock or institution across all days...',
+    rows: days, sortIdx: 0, pageSize: 25, sizes: [10, 25, 50], placeholder: 'Search a date, stock or institution across all days...',
     text: r => r.name + ' ' + dfmt(r.name) + ' ' + (rbd[r.name] || []).map(x => x.stock + ' ' + x.client).join(' '),
     cols: [
       { h: 'Date', l: 1, f: r => '<b>' + dfmt(r.name) + '</b> <span class="mut">' + wd(r.name) + '</span>', v: r => r.name },
@@ -279,7 +279,7 @@ function renderDashboard(DEALS, meta) {
   document.getElementById('p_dl').innerHTML = '<div class="card"><h2>All qualifying deals</h2><div class="cs">' + fn(DEALS.length) +
     ' rows \u00B7 search runs across every row in the dataset, then results are paged</div><div id="mDeals"></div></div>';
   paginatedTable('mDeals', {
-    rows: DEALS, sortIdx: 8, pageSize: 50, placeholder: 'Search stock, institution, date, exchange...',
+    rows: DEALS, sortIdx: 0, pageSize: 50, placeholder: 'Search stock, institution, date, exchange...',
     text: r => r.stock + ' ' + r.client + ' ' + r.day + ' ' + dfmt(r.day) + ' ' + r.exch + ' ' + r.type + ' ' + r.action,
     cols: [{ h: 'Date', l: 1, f: r => dfmt(r.day), v: r => r.day },
            { h: 'Stock', l: 1, f: r => '<b>' + r.stock + '</b>', v: r => r.stock },
