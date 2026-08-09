@@ -27,6 +27,148 @@ and inside every expanded row of the By Stock and By Institution tabs.
 Within a day, deals are grouped by institution and stock, with the buy leg listed
 before the sell leg.
 
+## Architecture
+
+The whole thing is plain client-side JavaScript. No framework, no build step, no
+dependencies, no server of its own. Data is scraped once into a JSON file, and
+everything after that is rendering.
+
+```
+  Trendlyne          one HTTP request per calendar day, session cookie reused
+      |
+      v
+  scrape.js          parse #bbdealTable -> raw rows -> clean()
+      |
+      v
+  data.json          4,268 deal records - the only stored artefact
+      |
+      +-------------------------+
+      |                         |
+      v                         v
+  app.js                    index.html
+  (aggregate + render)      (app.js + data.json inlined into one file)
+```
+
+There are three stages and they are deliberately kept apart: **collection** happens
+once and is throwaway, **cleaning** happens once and is baked into `data.json`, and
+**aggregation** happens on every render because it depends on which filters are on.
+
+### The deal record
+
+One shape flows through the entire system. `scrape.js` emits it, `data.json` stores
+it, and every table in the dashboard reads it:
+
+| Field | Example | Notes |
+|---|---|---|
+| `day` | `"2026-07-01"` | ISO, so lexical sort = chronological sort |
+| `stock` | `"Bang Overseas"` | Trendlyne short name |
+| `client` | `"SANDEEP JAIN"` | as disclosed; one name can cover several funds |
+| `exch` | `"NSE"` | NSE or BSE |
+| `type` | `"Bulk"` | Bulk or Block |
+| `action` | `"Purchase"` | Purchase or Sell |
+| `price` | `"31.44"` | string, exactly as displayed |
+| `qty` | `"84,823"` | string, exactly as displayed |
+| `intraday` | `"No"` | |
+| `pct` | `"0.63%"` | share of the day’s traded volume |
+| `q` | `84823` | derived numeric quantity |
+| `p` | `31.44` | derived numeric price |
+| `val` | `2666835.12` | `q * p`, in **rupees** |
+
+The display strings are kept alongside the numerics on purpose: the strings are what
+gets shown, the numbers are what gets sorted and summed, and neither has to be
+re-parsed at render time. Conversion to crore happens only at the moment of display
+(`val / 1e7`) and is never stored, which is why no rounding accumulates.
+
+### scrape.js - collection and cleaning
+
+Paste-into-the-console script rather than a module, because it relies on your logged
+in Trendlyne session (`fetch` with `credentials: "include"`). Four functions:
+
+- `dayRange(from, to)` expands a date range into a list of ISO days.
+- `fetchDay(day)` requests one day, parses the HTML with `DOMParser`, finds
+  `#bbdealTable` and maps each row’s ten `<td>` cells into a deal record.
+- `scrape(from, to)` loops the days and concatenates. One day at a time, because the
+  free tier caps how many rows a single query returns.
+- `clean(raw)` derives `q`, `p` and `val`, then applies the two cleaning rules.
+
+The run commands at the bottom are left commented out so that pasting the file does
+nothing until you ask it to.
+
+### app.js - the dashboard
+
+412 lines in four layers, bottom to top.
+
+**1. `window.CSS_SRC`** - the entire stylesheet as one string (~3.6 KB), injected
+into `<head>` at render time. Keeping it in JS is what allows the standalone build to
+be a single file.
+
+**2. `paginatedTable(mount, opts)`** - the one generic component everything else is
+built from. Options are `rows`, `cols`, `pageSize`, `sizes`, `sortIdx`,
+`placeholder`, `text` and `expand`. A column is `{ h, l, f, v }`: header label,
+left-align flag, a formatter returning HTML, and a value function used for sorting.
+
+Two properties matter. First, **search and sort always run over the full `rows` array
+and only then is a page sliced out** - so searching never means "search the 25 rows
+you can see". Second, every instance generates its own `uid`, so tables can nest
+inside other tables’ expanded rows without colliding. `expand(row)` returns the HTML
+for a detail row; nested tables are built lazily on first open and guarded by a
+`data-done` flag so re-opening is free.
+
+**3. Pure data helpers.**
+
+- `orderDeals(rows)` - the canonical ordering used everywhere deals are listed:
+  newest day first, then the largest client+stock group that day, then **buy leg
+  before sell leg**, then larger value.
+- `excludeRoundTrips(rows, tolPct)` - groups by day + client + stock and drops whole
+  groups whose buy and sell quantities agree within `tolPct`. At 100% this becomes
+  "was this institution on both sides at all", which is exactly what the
+  Daily - One-Sided tab needs, so that tab reuses this function rather than
+  duplicating the logic.
+
+**4. `buildDashboard(deals, meta)`** - pure aggregation, touches no DOM. It walks the
+deal array once and builds four keyed maps - by stock, by institution, by day, and by
+stock+institution pair - accumulating `{ deals, bq, bv, sq, sv, parties, days }` for
+each, alongside three row indexes (`rbs`, `rbi`, `rbd`) so any expanded row can find
+its underlying deals without re-scanning. For the current dataset that yields 673
+stocks, 1,347 institutions, 28 days and 2,073 stock+institution pairs. Being pure, it
+can safely be called more than once - and is: once for the main dataset and once for
+the one-sided subset that feeds its own tab.
+
+**`renderDashboard(deals, meta)`** is the only function that writes to the document.
+It injects the stylesheet, draws the KPI cards and the filter toggle, expands a
+`TABS` array into a tab strip plus one empty pane per tab (`p_ov`, `p_st`, `p_in`,
+`p_gs`, `p_gi`, `p_dy`, `p_dc`, `p_dl`), then mounts a `paginatedTable` into each.
+
+Filter state lives on `window.__RTS`: `on` and `tol` for the round-trip toggle, `tab`
+for which tab you are looking at, plus a reference to the unfiltered deal array so a
+rebuild can always start from the original data rather than from an already-filtered
+copy. Changing the toggle calls `rerenderDashboard()`, which throws the page away and
+rebuilds it, restoring the tab you were on. A full rebuild rather than a patch, because every
+aggregate and every headline number depends on the filter - at 4,268 rows it is
+instant, and it removes a whole class of stale-state bugs.
+
+### index.html and dashboard.html - the standalone build
+
+Both are the same file, generated by concatenating: `app.js` verbatim inside a
+`<script>`, then a second `<script>` holding `const DEALS = [...]` (the contents of
+`data.json`), `const META = {...}` (title, subtitle and the cleaning note), and a
+single call to `renderDashboard(DEALS, META)`.
+
+That is the entire bootstrap. Because nothing is fetched, the file opens from
+`file://` and can be served by GitHub Pages with no configuration.
+
+### What happens when you click a date
+
+Worth tracing once, because every expandable row in the dashboard works this way. The
+Daily table was mounted with an `expand` callback. Clicking the row inserts a detail
+row containing an empty `<div>`, and a queued callback then mounts a *second*
+`paginatedTable` into it, whose `rows` are `orderDeals(rbd[date])` - that day’s deals,
+pulled straight from the row index built during aggregation, already in canonical
+order. The inner table has its own search box, page size and pager, entirely
+independent of the outer one.
+
+---
+
 ## How the data is collected
 
 Trendlyne server-renders the entire result set for a date range into `#bbdealTable`.
@@ -193,13 +335,19 @@ preserved anywhere, so inspecting what was filtered out requires a re-scrape.
 
 ## Files
 
-| File | Purpose |
-|---|---|
-| `index.html` | **The dashboard.** Self-contained single file, data inlined - this is what GitHub Pages serves |
-| `app.js` | Styles, paginated table component, aggregation and rendering |
-| `scrape.js` | Trendlyne scraper and the cleaning rules |
-| `data.json` | The 4,268 cleaned deals |
-| `dashboard.html` | Byte-identical copy of `index.html`, kept under its original name |
+See [Architecture](#architecture) for how these fit together.
+
+| File | Size | Role |
+|---|---|---|
+| `index.html` | ~1000 KB | **The dashboard.** Self-contained single file with `app.js` and the data inlined. This is what GitHub Pages serves and what you open locally. |
+| `dashboard.html` | ~1000 KB | Byte-identical copy of `index.html`, kept under its original name. |
+| `app.js` | 31.7 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
+| `data.json` | 967 KB | The 4,268 cleaned deal records. The only stored data artefact. |
+| `scrape.js` | 3.7 KB | Console script that collects from Trendlyne one day at a time and applies the two cleaning rules. Not loaded by the dashboard. |
+
+`app.js` + `data.json` are the sources; `index.html` is generated from them. Editing
+the sources alone will not change the hosted page until the single-file build is
+regenerated - see [Extending the date range](#extending-the-date-range).
 
 ## Disclaimer
 
