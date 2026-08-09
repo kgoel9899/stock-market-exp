@@ -95,6 +95,40 @@ function paginatedTable(mount, o) {
   apply();
 }
 
+// Canonical ordering for any list of deals:
+//   newest day first -> biggest client+stock group that day -> buy leg before sell leg -> larger value.
+function orderDeals(rows) {
+  const key = r => r.day + '\u0000' + r.client + '\u0000' + r.stock;
+  const gt = {};
+  rows.forEach(r => { const k = key(r); gt[k] = (gt[k] || 0) + r.val; });
+  return rows.slice().sort((a, b) => {
+    if (a.day !== b.day) return a.day < b.day ? 1 : -1;
+    const ka = key(a), kb = key(b);
+    if (ka !== kb) { const d = gt[kb] - gt[ka]; return d !== 0 ? d : (ka < kb ? -1 : 1); }
+    const ra = a.action === 'Purchase' ? 0 : 1, rb = b.action === 'Purchase' ? 0 : 1;
+    if (ra !== rb) return ra - rb;
+    return b.val - a.val;
+  });
+}
+
+// Drop every (day, client, stock) group whose buy and sell quantities agree within tolPct percent.
+function excludeRoundTrips(rows, tolPct) {
+  const key = r => r.day + '\u0000' + r.client + '\u0000' + r.stock;
+  const g = {};
+  rows.forEach(r => {
+    const k = key(r), o = g[k] || (g[k] = { bq: 0, sq: 0 });
+    if (r.action === 'Purchase') o.bq += r.q; else o.sq += r.q;
+  });
+  const drop = {};
+  Object.keys(g).forEach(k => {
+    const o = g[k];
+    if (o.bq > 0 && o.sq > 0 && Math.abs(o.bq - o.sq) / Math.max(o.bq, o.sq) * 100 <= tolPct) drop[k] = 1;
+  });
+  return rows.filter(r => !drop[key(r)]);
+}
+
+function rerenderDashboard() { const S = window.__RTS; renderDashboard(S.all, S.meta); }
+
 function buildDashboard(DEALS, meta) {
   meta = meta || {};
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -148,7 +182,7 @@ function buildDashboard(DEALS, meta) {
     { h: 'Intraday', f: r => r.intraday === 'Yes' ? '<span class="mut">Yes</span>' : '', v: r => r.intraday }
   ]);
   const dealTable = (rows, mode) => {
-    rows = rows.slice().sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0) || (b.val - a.val));
+    rows = orderDeals(rows);
     const head = mode === 'stock' ? '<th class="l">Institution / Client</th>' : '<th class="l">Stock</th>';
     return '<div class="cs" style="margin:8px 0 4px"><b>' + fn(rows.length) + '</b> individual deals \u00B7 most recent first</div>' +
       '<table><thead><tr><th class="l">Date</th>' + head + '<th class="l">Exch</th><th class="l">Type</th><th class="l">Action</th><th>Qty</th><th>Price \u20B9</th><th>Value \u20B9cr</th><th>% Traded</th><th>Intraday</th></tr></thead><tbody>' +
@@ -172,6 +206,9 @@ function buildDashboard(DEALS, meta) {
 }
 
 function renderDashboard(DEALS, meta) {
+  const S = window.__RTS = window.__RTS || { on: false, tol: 1, tab: null };
+  S.all = DEALS; S.meta = meta;
+  if (S.on) DEALS = excludeRoundTrips(DEALS, S.tol);
   const X = buildDashboard(DEALS, meta);
   const { stocks, insts, days, rbs, rbi, rbd, pbs, pbi, BV, SV, fn, fc, fcp, dfmt, wd, money, moneyC, dealTable, childTable } = X;
   meta = meta || {};
@@ -194,10 +231,25 @@ function renderDashboard(DEALS, meta) {
       kpi('Turnover', '\u20B9' + fcp(BV + SV) + 'cr', 'buy + sell') +
     '</div>' +
     (meta.note ? '<div class="note">' + meta.note + '</div>' : '') +
+    '<div class="note" style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">' +
+      '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">' +
+        '<input type="checkbox" id="rtTog"' + (S.on ? ' checked' : '') + '>' +
+        '<b>Exclude same-day round trips</b></label>' +
+      '<span style="color:#8b97ad">hide every institution + stock + day whose buy and sell quantities agree within</span>' +
+      '<select id="rtTol">' + [0.1, 0.5, 1, 2, 5].map(v => '<option value="' + v + '"' + (v === S.tol ? ' selected' : '') + '>' + v + '%</option>').join('') + '</select>' +
+      '<span style="color:#8b97ad">' + (S.on
+        ? '\u2014 <b>' + fn(S.all.length - DEALS.length) + '</b> of ' + fn(S.all.length) + ' rows hidden'
+        : '\u2014 currently off, showing all ' + fn(S.all.length) + ' rows') + '</span>' +
+    '</div>' +
     '<div class="tabs">' + TABS.map((t, i) => '<div class="tab' + (i ? '' : ' on') + '" data-p="' + t[0] + '">' + t[1] + '</div>').join('') + '</div>' +
     '<div id="panes">' + TABS.map((t, i) => '<div class="pane' + (i ? ' hide' : '') + '" id="p_' + t[0] + '"></div>').join('') + '</div></div>';
 
-  document.querySelectorAll('.tab').forEach(el => el.onclick = () => {
+  const rtT = document.getElementById('rtTog'), rtS = document.getElementById('rtTol');
+    if (rtT) rtT.onchange = () => { S.on = rtT.checked; rerenderDashboard(); };
+    if (rtS) rtS.onchange = () => { S.tol = +rtS.value; if (S.on) rerenderDashboard(); };
+    document.querySelectorAll('.tab').forEach(el => el.addEventListener('click', () => { S.tab = el.dataset.p; }));
+    setTimeout(() => { if (S.tab) { const t = document.querySelector('.tab[data-p="' + S.tab + '"]'); if (t) t.click(); } }, 0);
+    document.querySelectorAll('.tab').forEach(el => el.onclick = () => {
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('on')); el.classList.add('on');
     document.querySelectorAll('.pane').forEach(x => x.classList.add('hide'));
     document.getElementById('p_' + el.dataset.p).classList.remove('hide');
@@ -271,7 +323,7 @@ function renderDashboard(DEALS, meta) {
         if (!m || m.dataset.done) return;
         m.dataset.done = 1;
         paginatedTable(m, {
-          rows: (rbd[r.name] || []).slice().sort((a, b) => b.val - a.val), sortIdx: 7, pageSize: 25, sizes: [10, 25, 50, 100],
+          rows: orderDeals(rbd[r.name] || []), pageSize: 25, sizes: [10, 25, 50, 100],
           placeholder: 'Filter this day...', text: x => x.stock + ' ' + x.client + ' ' + x.exch + ' ' + x.type + ' ' + x.action,
           cols: [{ h: 'Stock', l: 1, f: x => '<b>' + x.stock + '</b>', v: x => x.stock },
                  { h: 'Institution / Client', l: 1, f: x => x.client, v: x => x.client }].concat(X.dealCols({ h: '', f: () => '' }).slice(1))
@@ -285,7 +337,7 @@ function renderDashboard(DEALS, meta) {
   document.getElementById('p_dl').innerHTML = '<div class="card"><h2>All qualifying deals</h2><div class="cs">' + fn(DEALS.length) +
     ' rows \u00B7 search runs across every row in the dataset, then results are paged</div><div id="mDeals"></div></div>';
   paginatedTable('mDeals', {
-    rows: DEALS, sortIdx: 0, pageSize: 50, placeholder: 'Search stock, institution, date, exchange...',
+    rows: orderDeals(DEALS), sortIdx: 0, pageSize: 50, placeholder: 'Search stock, institution, date, exchange...',
     text: r => r.stock + ' ' + r.client + ' ' + r.day + ' ' + dfmt(r.day) + ' ' + r.exch + ' ' + r.type + ' ' + r.action,
     cols: [{ h: 'Date', l: 1, f: r => dfmt(r.day), v: r => r.day },
            { h: 'Stock', l: 1, f: r => '<b>' + r.stock + '</b>', v: r => r.stock },
