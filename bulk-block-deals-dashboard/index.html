@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bulk &amp; Block Deals Dashboard</title></head>
+<body>
+<script src="app.js"></script>
+<script>
+const META = {
+  "title": "Bulk &amp; Block Deals Dashboard",
+  "sub": "NSE + BSE · 1 Jul 2026 – 9 Aug 2026 · 28 trading days · source: Trendlyne, queried one day at a time",
+  "rawNote": "from 5,572 raw rows",
+  "note": "<b>Cleaning applied:</b> (1) every client that both bought and sold the <i>same stock</i> in the <i>same quantity</i> on the <i>same day</i> has had that matched buy/sell pair removed — <b>619 pairs / 1,238 rows</b> of intraday market-maker churn; (2) <b>66 rows</b> removed where one trade was reported twice (once in the Bulk feed and once in the Block feed). All ₹ figures are in crore, shown exactly to two decimals — hover any value to see the precise rupee amount."
+};
+fetch('data.json')
+  .then(r => r.json())
+  .then(deals => renderDashboard(deals, META))
+  .catch(e => { document.body.innerHTML = '<pre style="color:#c00;font:14px monospace;padding:24px">Could not load data.json - ' + e + '<\/pre>'; });
+</script>
+</body>
+</html>
