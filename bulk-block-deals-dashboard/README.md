@@ -16,7 +16,7 @@ An interactive dashboard over Indian bulk and block deal disclosures, built from
 | Buy value | Rs 47,374.99 cr |
 | Sell value | Rs 50,938.24 cr |
 
-Nine tabs: **Overview**, **Today**, **By Stock**, **By Institution**, **Stock -> Institutions**,
+Nine tabs: **Overview**, **Latest**, **By Stock**, **By Institution**, **Stock -> Institutions**,
 **Institution -> Stocks**, **Daily**, **Daily - One-Sided** and **All Deals**. Rows in the aggregate tabs are
 clickable and expand into the underlying individual deals. Every table is paginated,
 and search/sort always run over the *whole* dataset before paging, never just the
@@ -210,26 +210,32 @@ The toggle defaults to **off**, so the figures quoted above and the contents of
 `data.json` are unaffected. Two caveats: it drops the whole group including any
 genuine residual position, and a single client name can cover several funds.
 
-## The "Today" tab
+## The "Latest" tab
 
-A single-day view of the current calendar date, for the question "what changed hands
-today, and who was on each side?". It splits the day into two tables - **Bought
-today** and **Sold today** - each listing the stock, the institution or client, the
-exchange, bulk/block, quantity, price and deal value, sorted largest value first and
-searchable and paged like every other table. Above them sits a one-line summary: deal
-count, distinct stocks, distinct institutions, bought and sold value, net and
-turnover.
+A single-day view of the most recent trading day in the data, for the question "what
+changed hands, and who was on each side?". It splits that day into two tables -
+**Bought on <date>** and **Sold on <date>** - each listing the stock, the institution
+or client, the exchange, bulk/block, quantity, price and deal value, sorted largest
+value first and searchable and paged like every other table. Above them sits a
+one-line summary: deal count, distinct stocks, distinct institutions, bought and sold
+value, net and turnover.
 
-The date is read from the browser's clock at render time (`new Date()`), not stored
-anywhere, so the tab label and contents follow the machine you open the file on. Only
-that one date is ever shown - there is deliberately no fallback to the latest trading
-day in the data, because a silent fallback would look like today's flow when it is
-not. On a weekend, a market holiday, or before the day's deals have been scraped in,
-the tab says so and names the most recent trading day the dataset does hold; **Daily**
-remains the place to look at history.
+The date is `max(day)` over the deal array, computed at render time from the
+*unfiltered* rows so the round-trip toggle can shrink the lists but never move the
+date. It is deliberately **not** the machine's clock: after midnight, on a weekend or
+holiday, or before the day's scrape has been run, the clock is ahead of the data and a
+clock-driven tab would sit empty or claim a date the dataset has nothing for. Only
+that one date is ever shown - **Daily** remains the place to look at history.
+
+When the data is behind the clock, the tab says so in a muted line under the summary -
+"Data is 1 day behind this machine's clock (12 Aug 2026)" - so a stale scrape is
+visible rather than silently presented as current. The clock is used for that notice
+and nothing else.
 
 The round-trip toggle applies here as it does everywhere else, so switching it on
-removes matched churn from today's two lists and from the summary line.
+removes matched churn from both lists and from the summary line. In the pathological
+case where it hides every deal on that day, the tab says that too rather than
+rendering two empty tables.
 
 ## The "Daily - One-Sided" tab
 
@@ -364,7 +370,7 @@ See [Architecture](#architecture) for how these fit together.
 |---|---|---|
 | `index.html` | ~1077 KB | **The dashboard.** Self-contained single file with `app.js` and the data inlined. This is what GitHub Pages serves and what you open locally. |
 | `dashboard.html` | ~1077 KB | Byte-identical copy of `index.html`, kept under its original name. |
-| `app.js` | 35.5 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
+| `app.js` | 36.2 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
 | `data.json` | 1040 KB | The 4,593 cleaned deal records. The only stored data artefact. |
 | `scrape.js` | 3.7 KB | Console script that collects from Trendlyne one day at a time and applies the two cleaning rules. Not loaded by the dashboard. |
 

@@ -225,9 +225,11 @@ function renderDashboard(DEALS, meta) {
   const st = document.createElement('style'); st.textContent = window.CSS_SRC; document.head.appendChild(st);
 
   const kpi = (l, v, s) => '<div class="kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + (s || '') + '</div></div>';
-  // Today = the machine's local calendar date, resolved at render time - never a stored value.
-  const TODAY = (function () { const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); })();
-  const TABS = [['ov', 'Overview'], ['td', 'Today \u00B7 ' + dfmt(TODAY)], ['st', 'By Stock'], ['in', 'By Institution'], ['gs', 'Stock \u2192 Institutions'], ['gi', 'Institution \u2192 Stocks'], ['dy', 'Daily'], ['dc', 'Daily \u00B7 One-Sided'], ['dl', 'All Deals']];
+  // The latest date present in the data, taken from the unfiltered array so the
+  // round-trip toggle can never move it. Deliberately not the machine's clock: past
+  // midnight, or before a scrape has run, the clock is ahead of the data.
+  const LATEST = S.all.reduce((m, r) => r.day > m ? r.day : m, '');
+  const TABS = [['ov', 'Overview'], ['td', 'Latest \u00B7 ' + (LATEST ? dfmt(LATEST) : 'no data')], ['st', 'By Stock'], ['in', 'By Institution'], ['gs', 'Stock \u2192 Institutions'], ['gi', 'Institution \u2192 Stocks'], ['dy', 'Daily'], ['dc', 'Daily \u00B7 One-Sided'], ['dl', 'All Deals']];
 
   document.body.innerHTML = '<div class="wrap">' +
     '<h1>' + (meta.title || 'Bulk &amp; Block Deals Dashboard') + '</h1>' +
@@ -278,25 +280,30 @@ function renderDashboard(DEALS, meta) {
     { h: 'Turnover \u20B9cr', f: r => fc(r.bv + r.sv), v: r => r.bv + r.sv }
   ];
 
-  // ---- Today ----
-  // Current calendar date only. No fallback to the most recent trading day: an empty
-  // table here means nothing was reported today, which is itself the answer.
+  // ---- Latest day ----
+  // The single most recent date the data holds, and nothing else. It follows the
+  // data, not the clock, so it does not go blank at midnight or when a scrape is late.
   (function () {
-    const rows = orderDeals(rbd[TODAY] || []);
+    const rows = orderDeals(rbd[LATEST] || []);
     const buys = rows.filter(r => r.action === 'Purchase'), sells = rows.filter(r => r.action === 'Sell');
     const sum = a => a.reduce((t, r) => t + r.val, 0);
     const tBV = sum(buys), tSV = sum(sells);
-    const stamp = dfmt(TODAY) + ' ' + TODAY.slice(0, 4) + ' \u00B7 ' + wd(TODAY);
-    const last = days.length ? days[days.length - 1].name : null;
+    const stamp = LATEST ? dfmt(LATEST) + ' ' + LATEST.slice(0, 4) + ' \u00B7 ' + wd(LATEST) : '';
+    // Age of the data against the machine's clock - shown, never used to pick the date.
+    const clock = (function () { const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); })();
+    const behind = LATEST && LATEST < clock
+      ? Math.round((new Date(clock + 'T00:00:00') - new Date(LATEST + 'T00:00:00')) / 86400000) : 0;
+    const age = behind
+      ? '<div class="cs" style="margin-top:7px">Data is <b>' + behind + ' day' + (behind > 1 ? 's' : '') + '</b> behind this machine\u2019s clock (' +
+        dfmt(clock) + ' ' + clock.slice(0, 4) + ') \u2014 the market was shut, or the scrape has not been run since.</div>' : '';
 
     if (!rows.length) {
       document.getElementById('p_td').innerHTML =
-        '<div class="card"><h2>Today\u2019s deals \u2014 ' + stamp + '</h2>' +
-        '<div class="cs">This tab always shows the current calendar date and nothing else \u2014 use <b>Daily</b> for history.</div>' +
-        '<div class="note" style="margin:12px 0 0">No bulk or block deals recorded for <b>' + stamp + '</b> in this dataset. ' +
-        (last ? 'Most recent trading day held here is <b>' + dfmt(last) + ' ' + last.slice(0, 4) + '</b>' +
-          (last < TODAY ? ' \u2014 either the market was shut today, or today\u2019s deals have not been scraped in yet.' : '.') : '') +
-        '</div></div>';
+        '<div class="card"><h2>Latest trading day' + (stamp ? ' \u2014 ' + stamp : '') + '</h2>' +
+        '<div class="cs">This tab shows one date \u2014 the most recent the data holds \u2014 and nothing else. Use <b>Daily</b> for history.</div>' +
+        '<div class="note" style="margin:12px 0 0">' + (LATEST
+          ? 'Every deal on <b>' + stamp + '</b> is hidden by the round-trip filter. Turn the toggle off, or widen the tolerance, to see them.'
+          : 'This dataset is empty \u2014 there is no trading day to show.') + '</div></div>';
       return;
     }
 
@@ -316,13 +323,13 @@ function renderDashboard(DEALS, meta) {
       '</b> clients \u00B7 \u20B9' + fcp(value) + 'cr \u00B7 sorted by value, largest first</div><div id="' + id + '"></div></div>';
 
     document.getElementById('p_td').innerHTML =
-      '<div class="card"><h2>Today\u2019s deals \u2014 ' + stamp + '</h2><div class="cs">Every stock bought and sold today, with the client behind each leg and what it was worth. ' +
-      'This tab always shows the current calendar date and nothing else \u2014 use <b>Daily</b> for history.</div>' +
+      '<div class="card"><h2>Latest trading day \u2014 ' + stamp + '</h2><div class="cs">Every stock bought and sold on that date, with the client behind each leg and what it was worth. ' +
+      'This tab shows one date \u2014 the most recent the data holds \u2014 and nothing else. Use <b>Daily</b> for history.</div>' +
       '<div class="cs" style="margin-top:7px"><b>' + fn(rows.length) + '</b> deals \u00B7 <b>' + fn(new Set(rows.map(r => r.stock)).size) +
       '</b> stocks \u00B7 <b>' + fn(new Set(rows.map(r => r.client)).size) + '</b> institutions \u00B7 bought \u20B9' + fcp(tBV) +
-      'cr \u00B7 sold \u20B9' + fcp(tSV) + 'cr \u00B7 net ' + moneyC(tBV - tSV) + ' \u00B7 turnover \u20B9' + fcp(tBV + tSV) + 'cr</div></div>' +
-      side('mTdBuy', 'Bought today', buys, tBV) +
-      side('mTdSell', 'Sold today', sells, tSV);
+      'cr \u00B7 sold \u20B9' + fcp(tSV) + 'cr \u00B7 net ' + moneyC(tBV - tSV) + ' \u00B7 turnover \u20B9' + fcp(tBV + tSV) + 'cr</div>' + age + '</div>' +
+      side('mTdBuy', 'Bought on ' + dfmt(LATEST), buys, tBV) +
+      side('mTdSell', 'Sold on ' + dfmt(LATEST), sells, tSV);
 
     [['mTdBuy', buys], ['mTdSell', sells]].forEach(([id, list]) => paginatedTable(id, {
       rows: list, sortIdx: 6, pageSize: 25, placeholder: 'Search stock, institution, exchange...',
