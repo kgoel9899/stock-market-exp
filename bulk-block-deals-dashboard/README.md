@@ -4,7 +4,7 @@ An interactive dashboard over Indian bulk and block deal disclosures, built from
 [Trendlyne](https://trendlyne.com/portfolio/bulk-block-deals/all/) data for
 **1 Jul 2026 - 11 Aug 2026** (30 trading days).
 
-![tabs](https://img.shields.io/badge/tabs-8-blue) ![deals](https://img.shields.io/badge/deals-4%2C593-green) ![stocks](https://img.shields.io/badge/stocks-725-orange)
+![tabs](https://img.shields.io/badge/tabs-9-blue) ![deals](https://img.shields.io/badge/deals-4%2C593-green) ![stocks](https://img.shields.io/badge/stocks-725-orange)
 
 ## What it does
 
@@ -16,7 +16,7 @@ An interactive dashboard over Indian bulk and block deal disclosures, built from
 | Buy value | Rs 47,374.99 cr |
 | Sell value | Rs 50,938.24 cr |
 
-Eight tabs: **Overview**, **By Stock**, **By Institution**, **Stock -> Institutions**,
+Nine tabs: **Overview**, **Today**, **By Stock**, **By Institution**, **Stock -> Institutions**,
 **Institution -> Stocks**, **Daily**, **Daily - One-Sided** and **All Deals**. Rows in the aggregate tabs are
 clickable and expand into the underlying individual deals. Every table is paginated,
 and search/sort always run over the *whole* dataset before paging, never just the
@@ -137,7 +137,7 @@ the one-sided subset that feeds its own tab.
 **`renderDashboard(deals, meta)`** is the only function that writes to the document.
 It injects the stylesheet, draws the KPI cards and the filter toggle, expands a
 `TABS` array into a tab strip plus one empty pane per tab (`p_ov`, `p_st`, `p_in`,
-`p_gs`, `p_gi`, `p_dy`, `p_dc`, `p_dl`), then mounts a `paginatedTable` into each.
+`p_td`, `p_gs`, `p_gi`, `p_dy`, `p_dc`, `p_dl`), then mounts a `paginatedTable` into each.
 
 Filter state lives on `window.__RTS`: `on` and `tol` for the round-trip toggle, `tab`
 for which tab you are looking at, plus a reference to the unfiltered deal array so a
@@ -209,6 +209,27 @@ same day, a gap of 65 shares on 8.8 million. At 1% it hides 664 of 4,593 rows an
 The toggle defaults to **off**, so the figures quoted above and the contents of
 `data.json` are unaffected. Two caveats: it drops the whole group including any
 genuine residual position, and a single client name can cover several funds.
+
+## The "Today" tab
+
+A single-day view of the current calendar date, for the question "what changed hands
+today, and who was on each side?". It splits the day into two tables - **Bought
+today** and **Sold today** - each listing the stock, the institution or client, the
+exchange, bulk/block, quantity, price and deal value, sorted largest value first and
+searchable and paged like every other table. Above them sits a one-line summary: deal
+count, distinct stocks, distinct institutions, bought and sold value, net and
+turnover.
+
+The date is read from the browser's clock at render time (`new Date()`), not stored
+anywhere, so the tab label and contents follow the machine you open the file on. Only
+that one date is ever shown - there is deliberately no fallback to the latest trading
+day in the data, because a silent fallback would look like today's flow when it is
+not. On a weekend, a market holiday, or before the day's deals have been scraped in,
+the tab says so and names the most recent trading day the dataset does hold; **Daily**
+remains the place to look at history.
+
+The round-trip toggle applies here as it does everywhere else, so switching it on
+removes matched churn from today's two lists and from the summary line.
 
 ## The "Daily - One-Sided" tab
 
@@ -341,9 +362,9 @@ See [Architecture](#architecture) for how these fit together.
 
 | File | Size | Role |
 |---|---|---|
-| `index.html` | ~1070 KB | **The dashboard.** Self-contained single file with `app.js` and the data inlined. This is what GitHub Pages serves and what you open locally. |
-| `dashboard.html` | ~1070 KB | Byte-identical copy of `index.html`, kept under its original name. |
-| `app.js` | 31.7 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
+| `index.html` | ~1077 KB | **The dashboard.** Self-contained single file with `app.js` and the data inlined. This is what GitHub Pages serves and what you open locally. |
+| `dashboard.html` | ~1077 KB | Byte-identical copy of `index.html`, kept under its original name. |
+| `app.js` | 35.5 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
 | `data.json` | 1040 KB | The 4,593 cleaned deal records. The only stored data artefact. |
 | `scrape.js` | 3.7 KB | Console script that collects from Trendlyne one day at a time and applies the two cleaning rules. Not loaded by the dashboard. |
 

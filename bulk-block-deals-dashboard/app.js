@@ -219,7 +219,9 @@ function renderDashboard(DEALS, meta) {
   const st = document.createElement('style'); st.textContent = window.CSS_SRC; document.head.appendChild(st);
 
   const kpi = (l, v, s) => '<div class="kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + (s || '') + '</div></div>';
-  const TABS = [['ov', 'Overview'], ['st', 'By Stock'], ['in', 'By Institution'], ['gs', 'Stock \u2192 Institutions'], ['gi', 'Institution \u2192 Stocks'], ['dy', 'Daily'], ['dc', 'Daily \u00B7 One-Sided'], ['dl', 'All Deals']];
+  // Today = the machine's local calendar date, resolved at render time - never a stored value.
+  const TODAY = (function () { const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); })();
+  const TABS = [['ov', 'Overview'], ['td', 'Today \u00B7 ' + dfmt(TODAY)], ['st', 'By Stock'], ['in', 'By Institution'], ['gs', 'Stock \u2192 Institutions'], ['gi', 'Institution \u2192 Stocks'], ['dy', 'Daily'], ['dc', 'Daily \u00B7 One-Sided'], ['dl', 'All Deals']];
 
   document.body.innerHTML = '<div class="wrap">' +
     '<h1>' + (meta.title || 'Bulk &amp; Block Deals Dashboard') + '</h1>' +
@@ -269,6 +271,58 @@ function renderDashboard(DEALS, meta) {
     { h: 'Net \u20B9cr', f: r => money(r.net), v: r => r.net },
     { h: 'Turnover \u20B9cr', f: r => fc(r.bv + r.sv), v: r => r.bv + r.sv }
   ];
+
+  // ---- Today ----
+  // Current calendar date only. No fallback to the most recent trading day: an empty
+  // table here means nothing was reported today, which is itself the answer.
+  (function () {
+    const rows = orderDeals(rbd[TODAY] || []);
+    const buys = rows.filter(r => r.action === 'Purchase'), sells = rows.filter(r => r.action === 'Sell');
+    const sum = a => a.reduce((t, r) => t + r.val, 0);
+    const tBV = sum(buys), tSV = sum(sells);
+    const stamp = dfmt(TODAY) + ' ' + TODAY.slice(0, 4) + ' \u00B7 ' + wd(TODAY);
+    const last = days.length ? days[days.length - 1].name : null;
+
+    if (!rows.length) {
+      document.getElementById('p_td').innerHTML =
+        '<div class="card"><h2>Today\u2019s deals \u2014 ' + stamp + '</h2>' +
+        '<div class="cs">This tab always shows the current calendar date and nothing else \u2014 use <b>Daily</b> for history.</div>' +
+        '<div class="note" style="margin:12px 0 0">No bulk or block deals recorded for <b>' + stamp + '</b> in this dataset. ' +
+        (last ? 'Most recent trading day held here is <b>' + dfmt(last) + ' ' + last.slice(0, 4) + '</b>' +
+          (last < TODAY ? ' \u2014 either the market was shut today, or today\u2019s deals have not been scraped in yet.' : '.') : '') +
+        '</div></div>';
+      return;
+    }
+
+    const sideCols = [
+      { h: 'Stock', l: 1, f: r => '<b>' + r.stock + '</b>', v: r => r.stock },
+      { h: 'Institution / Client', l: 1, f: r => r.client, v: r => r.client },
+      { h: 'Exch', l: 1, f: r => '<span class="mut">' + r.exch + '</span>', v: r => r.exch },
+      { h: 'Type', l: 1, f: X.TY, v: r => r.type },
+      { h: 'Qty', f: r => fn(r.q), v: r => r.q },
+      { h: 'Price \u20B9', f: r => r.price, v: r => r.p },
+      { h: 'Value \u20B9cr', f: r => '<b>' + fc(r.val) + '</b>', v: r => r.val },
+      { h: '% Traded', f: r => r.pct, v: r => parseFloat(r.pct) || 0 },
+      { h: 'Intraday', f: r => r.intraday === 'Yes' ? '<span class="mut">Yes</span>' : '', v: r => r.intraday }
+    ];
+    const side = (id, title, list, value) => '<div class="card"><h2>' + title + '</h2><div class="cs"><b>' + fn(list.length) +
+      '</b> deals \u00B7 <b>' + fn(new Set(list.map(r => r.stock)).size) + '</b> stocks \u00B7 <b>' + fn(new Set(list.map(r => r.client)).size) +
+      '</b> clients \u00B7 \u20B9' + fcp(value) + 'cr \u00B7 sorted by value, largest first</div><div id="' + id + '"></div></div>';
+
+    document.getElementById('p_td').innerHTML =
+      '<div class="card"><h2>Today\u2019s deals \u2014 ' + stamp + '</h2><div class="cs">Every stock bought and sold today, with the client behind each leg and what it was worth. ' +
+      'This tab always shows the current calendar date and nothing else \u2014 use <b>Daily</b> for history.</div>' +
+      '<div class="cs" style="margin-top:7px"><b>' + fn(rows.length) + '</b> deals \u00B7 <b>' + fn(new Set(rows.map(r => r.stock)).size) +
+      '</b> stocks \u00B7 <b>' + fn(new Set(rows.map(r => r.client)).size) + '</b> institutions \u00B7 bought \u20B9' + fcp(tBV) +
+      'cr \u00B7 sold \u20B9' + fcp(tSV) + 'cr \u00B7 net ' + moneyC(tBV - tSV) + ' \u00B7 turnover \u20B9' + fcp(tBV + tSV) + 'cr</div></div>' +
+      side('mTdBuy', 'Bought today', buys, tBV) +
+      side('mTdSell', 'Sold today', sells, tSV);
+
+    [['mTdBuy', buys], ['mTdSell', sells]].forEach(([id, list]) => paginatedTable(id, {
+      rows: list, sortIdx: 6, pageSize: 25, placeholder: 'Search stock, institution, exchange...',
+      text: r => r.stock + ' ' + r.client + ' ' + r.exch + ' ' + r.type, cols: sideCols
+    }));
+  })();
 
   // ---- By Stock ----
   document.getElementById('p_st').innerHTML = '<div class="card"><h2>Deals grouped by stock</h2><div class="cs">' + stocks.length +
