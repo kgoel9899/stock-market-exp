@@ -23,7 +23,7 @@ function dayRange(fromISO, toISO) {
 }
 
 async function fetchDay(day) {
-  const url = \`\${BASE}?defaultStockgroup=all&start_date=\${day}&end_date=\${day}\`;
+  const url = `${BASE}?defaultStockgroup=all&start_date=${day}&end_date=${day}`;
   const html = await (await fetch(url, { credentials: 'include' })).text();
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const table = doc.querySelector('#bbdealTable');
@@ -34,7 +34,7 @@ async function fetchDay(day) {
     const a = c[0].querySelector('a');
     return {
       day,
-      stock:    a ? a.textContent.trim() : c[0].textContent.trim().split('\\n')[0].trim(),
+      stock:    a ? a.textContent.trim() : c[0].textContent.trim().split('\n')[0].trim(),
       client:   c[1].textContent.trim(),
       exch:     c[2].textContent.trim(),
       type:     c[3].textContent.trim(),   // Bulk | Block
@@ -59,7 +59,7 @@ async function scrape(fromISO, toISO) {
 
 /* ---------------- cleaning ---------------- */
 
-const num = s => Number(String(s).replace(/[^0-9.\\-]/g, '')) || 0;
+const num = s => Number(String(s).replace(/[^0-9.\-]/g, '')) || 0;
 
 function clean(raw) {
   const rows = raw.map(r => ({ ...r, q: num(r.qty), p: num(r.price) }))
