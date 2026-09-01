@@ -2,19 +2,19 @@
 
 An interactive dashboard over Indian bulk and block deal disclosures, built from
 [Trendlyne](https://trendlyne.com/portfolio/bulk-block-deals/all/) data for
-**1 Jul 2026 - 28 Aug 2026** (43 trading days).
+**1 Jul 2026 - 1 Sep 2026** (45 trading days).
 
-![tabs](https://img.shields.io/badge/tabs-9-blue) ![deals](https://img.shields.io/badge/deals-7%2C193-green) ![stocks](https://img.shields.io/badge/stocks-997-orange)
+![tabs](https://img.shields.io/badge/tabs-9-blue) ![deals](https://img.shields.io/badge/deals-7%2C703-green) ![stocks](https://img.shields.io/badge/stocks-1%2C042-orange)
 
 ## What it does
 
 | | |
 |---|---|
-| Qualifying deals | 7,193 (from 9,290 raw rows) |
-| Stocks | 997 |
-| Institutions | 2,095 |
-| Buy value | Rs 88,379.92 cr |
-| Sell value | Rs 1,17,735.81 cr |
+| Qualifying deals | 7,703 (from 9,910 raw rows) |
+| Stocks | 1,042 |
+| Institutions | 2,190 |
+| Buy value | Rs 98,364.41 cr |
+| Sell value | Rs 1,34,220.62 cr |
 
 Nine tabs: **Overview**, **Latest**, **By Stock**, **By Institution**, **Stock -> Institutions**,
 **Institution -> Stocks**, **Daily**, **Daily - One-Sided** and **All Deals**. Rows in the aggregate tabs are
@@ -40,7 +40,7 @@ everything after that is rendering.
   scrape.js          parse #bbdealTable -> raw rows -> clean()
       |
       v
-  data.json          7,193 deal records - the only stored artefact
+  data.json          7,703 deal records - the only stored artefact
       |
       +-------------------------+
       |                         |
@@ -129,8 +129,8 @@ for a detail row; nested tables are built lazily on first open and guarded by a
 deal array once and builds four keyed maps - by stock, by institution, by day, and by
 stock+institution pair - accumulating `{ deals, bq, bv, sq, sv, parties, days }` for
 each, alongside three row indexes (`rbs`, `rbi`, `rbd`) so any expanded row can find
-its underlying deals without re-scanning. For the current dataset that yields 997
-stocks, 2,095 institutions, 43 days and 3,451 stock+institution pairs. Being pure, it
+its underlying deals without re-scanning. For the current dataset that yields 1,042
+stocks, 2,190 institutions, 45 days and 3,663 stock+institution pairs. Being pure, it
 can safely be called more than once - and is: once for the main dataset and once for
 the one-sided subset that feeds its own tab.
 
@@ -144,7 +144,7 @@ for which tab you are looking at, plus a reference to the unfiltered deal array 
 rebuild can always start from the original data rather than from an already-filtered
 copy. Changing the toggle calls `rerenderDashboard()`, which throws the page away and
 rebuilds it, restoring the tab you were on. A full rebuild rather than a patch, because every
-aggregate and every headline number depends on the filter - at 7,193 rows it is
+aggregate and every headline number depends on the filter - at 7,703 rows it is
 instant, and it removes a whole class of stale-state bugs.
 
 ### index.html and dashboard.html - the standalone build
@@ -184,9 +184,9 @@ returned HTML with `DOMParser`, and reads the rows straight out of the table.
 
 1. **Matched round trips removed.** Any client that both bought *and* sold the same
    stock in the same quantity on the same day has that matched buy/sell pair dropped -
-   963 pairs, 1,926 rows. This is overwhelmingly intraday market-maker and arbitrage
+   1,010 pairs, 2,020 rows. This is overwhelmingly intraday market-maker and arbitrage
    churn (NK Securities, Junomoneta Finsol, HRTI, Microcurves and similar).
-2. **Feed duplicates removed.** 171 rows where one trade was reported twice, once in
+2. **Feed duplicates removed.** 187 rows where one trade was reported twice, once in
    the Bulk feed and once in the Block feed, which would otherwise double-count value.
 
 A note on **net = 0.00 cr**: some stocks show an exactly zero net. That means both
@@ -204,7 +204,7 @@ whose buy and sell quantities agree within a chosen tolerance (0.1%, 0.5%, 1%, 2
 
 This catches the near-matched round trips that the exact-quantity rule misses - for
 example Graviton buying 8,775,327 Kalyan Jewellers shares and selling 8,775,262 the
-same day, a gap of 65 shares on 8.8 million. At 1% it hides 1,035 of 7,193 rows and turnover falls from Rs 2,06,115.72 cr to Rs 1,74,203.15 cr; at 0.1% it hides 441 rows whose combined residual net position is only about Rs 7.25 cr.
+same day, a gap of 65 shares on 8.8 million. At 1% it hides 1,139 of 7,703 rows and turnover falls from Rs 2,32,585.02 cr to Rs 1,97,211.47 cr; at 0.1% it hides 489 rows whose combined residual net position is only about Rs 8.08 cr.
 
 The toggle defaults to **off**, so the figures quoted above and the contents of
 `data.json` are unaffected. Two caveats: it drops the whole group including any
@@ -250,20 +250,20 @@ sold, a given stock on a given day.
 
 | | |
 |---|---|
-| Rows kept | 3,471 of 7,193 |
-| Rows removed | 3,722, across 1,762 institution + stock + day combinations |
-| Stocks | 814 |
-| Institutions | 1,931 |
-| Buy value | Rs 54,884.51 cr |
-| Sell value | Rs 85,279.96 cr |
-| Turnover | Rs 1,40,164.47 cr |
+| Rows kept | 3,676 of 7,703 |
+| Rows removed | 4,027, across 1,908 institution + stock + day combinations |
+| Stocks | 852 |
+| Institutions | 2,024 |
+| Buy value | Rs 59,155.12 cr |
+| Sell value | Rs 90,957.36 cr |
+| Turnover | Rs 1,50,112.48 cr |
 
 It behaves exactly like the Daily tab otherwise - click any date to open every
 surviving deal for that day, both lists are paged independently, and the search box
 looks through all deals on all days.
 
 Because this rule is strictly stronger than any tolerance the toggle offers, the tab
-shows the same 3,471 rows whether the round-trip toggle is on or off. Note that it
+shows the same 3,676 rows whether the round-trip toggle is on or off. Note that it
 only removes an institution from the stock it traded both ways - it keeps genuine
 two-party blocks, where one institution sells and a different one buys.
 
@@ -358,7 +358,7 @@ of the existing range and overwrite those days rather than assuming they are fro
 
 - The round-trip filter is **exact quantity only**. A client that buys 100,000 and
 sells 95,000 of the same stock on the same day still appears in full, on both legs.
-- `data.json` holds the cleaned 7,193 rows only. The 2,097 removed rows are not
+- `data.json` holds the cleaned 7,703 rows only. The 2,207 removed rows are not
 preserved anywhere, so inspecting what was filtered out requires a re-scrape.
 - Figures are disclosed bulk/block deal values, not total market turnover in a stock.
 
@@ -368,10 +368,10 @@ See [Architecture](#architecture) for how these fit together.
 
 | File | Size | Role |
 |---|---|---|
-| `index.html` | ~1670 KB | **The dashboard.** Self-contained single file with `app.js` and the data inlined. This is what GitHub Pages serves and what you open locally. |
-| `dashboard.html` | ~1670 KB | Byte-identical copy of `index.html`, kept under its original name. |
+| `index.html` | ~1787 KB | **The dashboard.** Self-contained single file with `app.js` and the data inlined. This is what GitHub Pages serves and what you open locally. |
+| `dashboard.html` | ~1787 KB | Byte-identical copy of `index.html`, kept under its original name. |
 | `app.js` | 36.2 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
-| `data.json` | 1633 KB | The 7,193 cleaned deal records. The only stored data artefact. |
+| `data.json` | 1749 KB | The 7,703 cleaned deal records. The only stored data artefact. |
 | `scrape.js` | 3.7 KB | Console script that collects from Trendlyne one day at a time and applies the two cleaning rules. Not loaded by the dashboard. |
 
 `app.js` + `data.json` are the sources; `index.html` is generated from them. Editing
