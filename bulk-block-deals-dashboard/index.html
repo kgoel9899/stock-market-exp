@@ -24,7 +24,7 @@ function paginatedTable(mount, o) {
   const el = typeof mount === 'string' ? document.getElementById(mount) : mount;
   const uid = 'pt' + Math.random().toString(36).slice(2, 7);
   const sizes = o.sizes || [25, 50, 100, 250];
-  let size = o.pageSize || 25, page = 1, q = '', sortI = (o.sortIdx != null ? o.sortIdx : null), dir = -1, view = o.rows.slice();
+  let size = o.pageSize || 250, page = 1, q = '', sortI = (o.sortIdx != null ? o.sortIdx : null), dir = -1, view = o.rows.slice();
 
   el.innerHTML =
     '<div class="ctl"><input class="search" id="' + uid + 'q" placeholder="' + (o.placeholder || 'Search...') + '">' +
@@ -205,8 +205,11 @@ function buildDashboard(DEALS, meta) {
   return { stocks, insts, days, pairs, rbs, rbi, rbd, pbs, pbi, BV, SV, fn, fc, fcp, dfmt, wd, money, moneyC, dealTable, childTable, dealCols, AC, TY, meta };
 }
 
+// The tab the dashboard opens on. 'td' is the Latest single-day view.
+const DEFAULT_TAB = 'td';
+
 function renderDashboard(DEALS, meta) {
-  const S = window.__RTS = window.__RTS || { on: false, tol: 1, tab: null };
+  const S = window.__RTS = window.__RTS || { on: true, tol: 1, tab: DEFAULT_TAB };
   S.all = DEALS; S.meta = meta;
   if (S.on) DEALS = excludeRoundTrips(DEALS, S.tol);
   const X = buildDashboard(DEALS, meta);
@@ -230,6 +233,7 @@ function renderDashboard(DEALS, meta) {
   // midnight, or before a scrape has run, the clock is ahead of the data.
   const LATEST = S.all.reduce((m, r) => r.day > m ? r.day : m, '');
   const TABS = [['ov', 'Overview'], ['td', 'Latest \u00B7 ' + (LATEST ? dfmt(LATEST) : 'no data')], ['st', 'By Stock'], ['in', 'By Institution'], ['gs', 'Stock \u2192 Institutions'], ['gi', 'Institution \u2192 Stocks'], ['dy', 'Daily'], ['dc', 'Daily \u00B7 One-Sided'], ['dl', 'All Deals']];
+  const OPEN_TAB = TABS.some(t => t[0] === S.tab) ? S.tab : DEFAULT_TAB;
 
   document.body.innerHTML = '<div class="wrap">' +
     '<h1>' + (meta.title || 'Bulk &amp; Block Deals Dashboard') + '</h1>' +
@@ -253,8 +257,8 @@ function renderDashboard(DEALS, meta) {
         ? '\u2014 <b>' + fn(S.all.length - DEALS.length) + '</b> of ' + fn(S.all.length) + ' rows hidden'
         : '\u2014 currently off, showing all ' + fn(S.all.length) + ' rows') + '</span>' +
     '</div>' +
-    '<div class="tabs">' + TABS.map((t, i) => '<div class="tab' + (i ? '' : ' on') + '" data-p="' + t[0] + '">' + t[1] + '</div>').join('') + '</div>' +
-    '<div id="panes">' + TABS.map((t, i) => '<div class="pane' + (i ? ' hide' : '') + '" id="p_' + t[0] + '"></div>').join('') + '</div></div>';
+    '<div class="tabs">' + TABS.map(t => '<div class="tab' + (t[0] === OPEN_TAB ? ' on' : '') + '" data-p="' + t[0] + '">' + t[1] + '</div>').join('') + '</div>' +
+    '<div id="panes">' + TABS.map(t => '<div class="pane' + (t[0] === OPEN_TAB ? '' : ' hide') + '" id="p_' + t[0] + '"></div>').join('') + '</div></div>';
 
   const rtT = document.getElementById('rtTog'), rtS = document.getElementById('rtTol');
     if (rtT) rtT.onchange = () => { S.on = rtT.checked; rerenderDashboard(); };
@@ -332,7 +336,7 @@ function renderDashboard(DEALS, meta) {
       side('mTdSell', 'Sold on ' + dfmt(LATEST), sells, tSV);
 
     [['mTdBuy', buys], ['mTdSell', sells]].forEach(([id, list]) => paginatedTable(id, {
-      rows: list, sortIdx: 6, pageSize: 25, placeholder: 'Search stock, institution, exchange...',
+      rows: list, sortIdx: 6, pageSize: 250, placeholder: 'Search stock, institution, exchange...',
       text: r => r.stock + ' ' + r.client + ' ' + r.exch + ' ' + r.type, cols: sideCols
     }));
   })();
@@ -340,13 +344,13 @@ function renderDashboard(DEALS, meta) {
   // ---- By Stock ----
   document.getElementById('p_st').innerHTML = '<div class="card"><h2>Deals grouped by stock</h2><div class="cs">' + stocks.length +
     ' scrips \u00B7 <b>click any stock to list every deal executed on it</b> \u00B7 search and sort run over the whole dataset, then results are paged \u00B7 values in \u20B9 crore, exact to 2 decimals (hover for the precise rupee amount)</div><div id="mStock"></div></div>';
-  paginatedTable('mStock', { rows: stocks, sortIdx: 9, pageSize: 25, placeholder: 'Search all stocks...', text: r => r.name,
+  paginatedTable('mStock', { rows: stocks, sortIdx: 9, pageSize: 250, placeholder: 'Search all stocks...', text: r => r.name,
     cols: aggCols('Stock', 'Institutions'), expand: r => dealTable(rbs[r.name] || [], 'stock') });
 
   // ---- By Institution ----
   document.getElementById('p_in').innerHTML = '<div class="card"><h2>Deals grouped by institution</h2><div class="cs">' + insts.length +
     ' unique client names \u00B7 <b>click any institution to list every deal it executed</b></div><div id="mInst"></div></div>';
-  paginatedTable('mInst', { rows: insts, sortIdx: 9, pageSize: 25, placeholder: 'Search all institutions...', text: r => r.name,
+  paginatedTable('mInst', { rows: insts, sortIdx: 9, pageSize: 250, placeholder: 'Search all institutions...', text: r => r.name,
     cols: aggCols('Institution / Client', 'Stocks'), expand: r => dealTable(rbi[r.name] || [], 'inst') });
 
   // ---- grouped tabs ----
@@ -362,12 +366,12 @@ function renderDashboard(DEALS, meta) {
   ];
   document.getElementById('p_gs').innerHTML = '<div class="card"><h2>Every stock, broken down by the institutions that traded it</h2><div class="cs">' +
     stocks.length + ' groups \u00B7 <b>click a row to expand</b> \u00B7 the search also looks inside each group</div><div id="mGS"></div></div>';
-  paginatedTable('mGS', { rows: stocks, sortIdx: 7, pageSize: 25, placeholder: 'Search...',
+  paginatedTable('mGS', { rows: stocks, sortIdx: 7, pageSize: 250, placeholder: 'Search...',
     text: r => r.name + ' ' + (pbs[r.name] || []).map(k => k.inst).join(' '),
     cols: grpCols('Stock', 'Institutions'), expand: r => childTable(pbs[r.name] || [], 'inst', 'institutions') });
   document.getElementById('p_gi').innerHTML = '<div class="card"><h2>Every institution, broken down by the stocks it traded</h2><div class="cs">' +
     insts.length + ' groups \u00B7 <b>click a row to expand</b></div><div id="mGI"></div></div>';
-  paginatedTable('mGI', { rows: insts, sortIdx: 7, pageSize: 25, placeholder: 'Search...',
+  paginatedTable('mGI', { rows: insts, sortIdx: 7, pageSize: 250, placeholder: 'Search...',
     text: r => r.name + ' ' + (pbi[r.name] || []).map(k => k.stock).join(' '),
     cols: grpCols('Institution / Client', 'Stocks'), expand: r => childTable(pbi[r.name] || [], 'stock', 'stocks') });
 
@@ -375,7 +379,7 @@ function renderDashboard(DEALS, meta) {
   document.getElementById('p_dy').innerHTML = '<div class="card"><h2>Day-by-day activity</h2><div class="cs">' + days.length +
     ' trading days \u00B7 <b>click any date to open every deal reported that day</b> \u00B7 the day list and each day\u2019s deal list are separately paged; searching looks through all deals on all days</div><div id="mDay"></div></div>';
   paginatedTable('mDay', {
-    rows: days, sortIdx: 0, pageSize: 25, sizes: [10, 25, 50], placeholder: 'Search a date, stock or institution across all days...',
+    rows: days, sortIdx: 0, pageSize: 250, sizes: [10, 25, 50, 250], placeholder: 'Search a date, stock or institution across all days...',
     text: r => r.name + ' ' + dfmt(r.name) + ' ' + (rbd[r.name] || []).map(x => x.stock + ' ' + x.client).join(' '),
     cols: [
       { h: 'Date', l: 1, f: r => '<b>' + dfmt(r.name) + '</b> <span class="mut">' + wd(r.name) + '</span>', v: r => r.name },
@@ -392,7 +396,7 @@ function renderDashboard(DEALS, meta) {
         if (!m || m.dataset.done) return;
         m.dataset.done = 1;
         paginatedTable(m, {
-          rows: orderDeals(rbd[r.name] || []), pageSize: 25, sizes: [10, 25, 50, 100],
+          rows: orderDeals(rbd[r.name] || []), pageSize: 250, sizes: [10, 25, 50, 100, 250],
           placeholder: 'Filter this day...', text: x => x.stock + ' ' + x.client + ' ' + x.exch + ' ' + x.type + ' ' + x.action,
           cols: [{ h: 'Stock', l: 1, f: x => '<b>' + x.stock + '</b>', v: x => x.stock },
                  { h: 'Institution / Client', l: 1, f: x => x.client, v: x => x.client }].concat(X.dealCols({ h: '', f: () => '' }).slice(1))
@@ -412,7 +416,7 @@ function renderDashboard(DEALS, meta) {
     fcp(XC.BV) + 'cr \u00B7 sell \u20B9' + fcp(XC.SV) + 'cr \u00B7 turnover \u20B9' + fcp(XC.BV + XC.SV) + 'cr</div>' +
     '<div id="mDayC"></div></div>';
   paginatedTable('mDayC', {
-    rows: XC.days, sortIdx: 0, pageSize: 25, sizes: [10, 25, 50], placeholder: 'Search a date, stock or institution across all days...',
+    rows: XC.days, sortIdx: 0, pageSize: 250, sizes: [10, 25, 50, 250], placeholder: 'Search a date, stock or institution across all days...',
     text: r => r.name + ' ' + dfmt(r.name) + ' ' + (XC.rbd[r.name] || []).map(x => x.stock + ' ' + x.client).join(' '),
     cols: [
       { h: 'Date', l: 1, f: r => '<b>' + dfmt(r.name) + '</b> <span class="mut">' + wd(r.name) + '</span>', v: r => r.name },
@@ -429,7 +433,7 @@ function renderDashboard(DEALS, meta) {
         if (!m || m.dataset.done) return;
         m.dataset.done = 1;
         paginatedTable(m, {
-          rows: orderDeals(XC.rbd[r.name] || []), pageSize: 25, sizes: [10, 25, 50, 100],
+          rows: orderDeals(XC.rbd[r.name] || []), pageSize: 250, sizes: [10, 25, 50, 100, 250],
           placeholder: 'Filter this day...', text: x => x.stock + ' ' + x.client + ' ' + x.exch + ' ' + x.type + ' ' + x.action,
           cols: [{ h: 'Stock', l: 1, f: x => '<b>' + x.stock + '</b>', v: x => x.stock },
                  { h: 'Institution / Client', l: 1, f: x => x.client, v: x => x.client }].concat(X.dealCols({ h: '', f: () => '' }).slice(1))
@@ -443,7 +447,7 @@ function renderDashboard(DEALS, meta) {
   document.getElementById('p_dl').innerHTML = '<div class="card"><h2>All qualifying deals</h2><div class="cs">' + fn(DEALS.length) +
     ' rows \u00B7 search runs across every row in the dataset, then results are paged</div><div id="mDeals"></div></div>';
   paginatedTable('mDeals', {
-    rows: orderDeals(DEALS), sortIdx: 0, pageSize: 50, placeholder: 'Search stock, institution, date, exchange...',
+    rows: orderDeals(DEALS), sortIdx: 0, pageSize: 250, placeholder: 'Search stock, institution, date, exchange...',
     text: r => r.stock + ' ' + r.client + ' ' + r.day + ' ' + dfmt(r.day) + ' ' + r.exch + ' ' + r.type + ' ' + r.action,
     cols: [{ h: 'Date', l: 1, f: r => dfmt(r.day), v: r => r.day },
            { h: 'Stock', l: 1, f: r => '<b>' + r.stock + '</b>', v: r => r.stock },

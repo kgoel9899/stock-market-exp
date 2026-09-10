@@ -108,7 +108,7 @@ built from. Options are `rows`, `cols`, `pageSize`, `sizes`, `sortIdx`,
 left-align flag, a formatter returning HTML, and a value function used for sorting.
 
 Two properties matter. First, **search and sort always run over the full `rows` array
-and only then is a page sliced out** - so searching never means "search the 25 rows
+and only then is a page sliced out** - so searching never means "search the 250 rows
 you can see". Second, every instance generates its own `uid`, so tables can nest
 inside other tables’ expanded rows without colliding. `expand(row)` returns the HTML
 for a detail row; nested tables are built lazily on first open and guarded by a
@@ -206,9 +206,11 @@ This catches the near-matched round trips that the exact-quantity rule misses - 
 example Graviton buying 8,775,327 Kalyan Jewellers shares and selling 8,775,262 the
 same day, a gap of 65 shares on 8.8 million. At 1% it hides 1,405 of 9,138 rows and turnover falls from Rs 3,07,966.49 cr to Rs 2,63,934.99 cr; at 0.1% it hides 573 rows whose combined residual net position is only about Rs 9.23 cr.
 
-The toggle defaults to **off**, so the figures quoted above and the contents of
-`data.json` are unaffected. Two caveats: it drops the whole group including any
-genuine residual position, and a single client name can cover several funds.
+The toggle defaults to **on at 1%**, so the dashboard opens on the filtered view -
+untick it to see all rows. The figures quoted above and the contents of `data.json`
+are the unfiltered set and are unaffected either way. Two caveats: it drops the whole
+group including any genuine residual position, and a single client name can cover
+several funds.
 
 ## The "Latest" tab
 
@@ -370,7 +372,7 @@ See [Architecture](#architecture) for how these fit together.
 |---|---|---|
 | `index.html` | ~2113 KB | **The dashboard.** Self-contained single file with `app.js` and the data inlined. This is what GitHub Pages serves and what you open locally. |
 | `dashboard.html` | ~2113 KB | Byte-identical copy of `index.html`, kept under its original name. |
-| `app.js` | 36.2 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
+| `app.js` | 36.5 KB | Source of the dashboard: stylesheet, the `paginatedTable` component, the ordering and filtering helpers, aggregation (`buildDashboard`) and rendering (`renderDashboard`). |
 | `data.json` | 2076 KB | The 9,138 cleaned deal records. The only stored data artefact. |
 | `scrape.js` | 3.7 KB | Console script that collects from Trendlyne one day at a time and applies the two cleaning rules. Not loaded by the dashboard. |
 
